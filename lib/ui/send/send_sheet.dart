@@ -1,4 +1,5 @@
 import 'dart:math';
+import 'dart:async';
 
 import 'package:auto_size_text/auto_size_text.dart';
 import 'package:flutter/material.dart';
@@ -9,6 +10,8 @@ import 'package:intl/intl.dart';
 import 'package:logger/logger.dart';
 import 'package:manta_dart/manta_wallet.dart';
 import 'package:manta_dart/messages.dart';
+import 'package:validators/validators.dart';
+import 'package:basic_utils/basic_utils.dart';
 
 import 'package:natrium_wallet_flutter/appstate_container.dart';
 import 'package:natrium_wallet_flutter/dimens.dart';
@@ -863,6 +866,15 @@ class _SendSheetState extends State<SendSheet> {
     );
   }
 
+  bool isAlias(String addrInput){
+    return (isEmail(addrInput) || isFQDN(addrInput));
+  }
+
+  Future<String> aliasResolve(String rawAlias) async{
+    String strippedAlias = rawAlias.replaceFirst(RegExp('@'), '.');
+    List<RRecord> records = await DnsUtils.lookupRecord(strippedAlias, RRecordType.TXT);
+    return (records?.length ?? 0) > 0 ? records.first: "";
+  }
   /// Validate form data to see if valid
   /// @returns true if valid, false otherwise
   bool _validateRequest() {
@@ -1014,7 +1026,7 @@ class _SendSheetState extends State<SendSheet> {
         }
       },
     );
-  } //************ Enter Address Container Method End ************//
+  } //************ Enter Amount Container Method End ************//
   //*************************************************************//
 
   //************ Enter Address Container Method ************//
@@ -1071,7 +1083,12 @@ class _SendSheetState extends State<SendSheet> {
               if (data == null || data.text == null) {
                 return;
               }
-              Address address = Address(data.text);
+              Address address;
+              if (isAlias(data.text)) {
+                address = Address(aliasResolve(await data.text));
+              } else {
+                address = Address(data.text);
+              }
               if (address.isValid()) {
                 sl
                     .get<DBHelper>()
